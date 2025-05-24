@@ -101,6 +101,7 @@ The plotting options (to be written in the input file) are listed here.
 | `path_report` | `[]` | Compute the MEP between two species. Format: `chemid_start chemid_end` | TG |
 | `search_cutoff` | `10` | Maximum length (in reactive steps) to search for of the path report. | TG |
 | `node_size_diff` | `0` | Size difference of nodes in the graph depiction based on to their stability. More stable nodes are larger. 0 to make all nodes the same size. Reasonable values: 20-40.| G |
+| `draw_placeholder_lines` | `0` | If set to `1`, a horizontal dashed gray line will be drawn for each well and bimolecular product at its respective energy level. This can be useful as a placeholder if 2D images are not available or to highlight the energy levels. Default is `0` (disabled). | T |
 
 * This column shows whether the parameter impacts the traditional (T) Potential vs Reaction coordinate PES depiction, the graph (G) one, or both (TG).
 

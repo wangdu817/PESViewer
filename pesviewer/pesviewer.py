@@ -6,14 +6,17 @@ import sys
 import math
 
 import matplotlib
-matplotlib.use('TkAgg')
+matplotlib.use('Agg')  # Changed from TkAgg to Agg
 from matplotlib import pylab as plt  # translate into pyplot.
 import matplotlib.image as mpimg
 import numpy as np
 import numpy.linalg as la
 from rdkit import Chem
 from rdkit.Chem import Draw, AllChem
-from rdkit.Chem.Draw.cairoCanvas import Canvas
+try:
+    from rdkit.Chem.Draw.cairoCanvas import Canvas
+except ModuleNotFoundError:
+    Canvas = None # Or some other placeholder if Canvas is used directly elsewhere
 from openbabel import pybel
 from PIL import Image
 import networkx as nx
@@ -448,6 +451,8 @@ def read_input(fname):
     options['search_cutoff'] = 10
     # Scale graph nodes according to their stability.
     options['node_size_diff'] = 0
+    # Whether to draw placeholder lines for missing images
+    options['draw_placeholder_lines'] = 0
 
     if 'options' in input_dict:
         for line in input_dict['options']:
@@ -517,6 +522,8 @@ def read_input(fname):
                 options['search_cutoff'] = int(line.split()[1])
             elif line.startswith('node_size_diff'):
                 options['node_size_diff'] = float(line.split()[1])
+            elif line.startswith('draw_placeholder_lines'):
+                options['draw_placeholder_lines'] = int(line.split()[1])
             elif line.startswith('#'):
                 # comment line, don't do anything
                 continue
@@ -952,6 +959,17 @@ def plot():
     ax.set_xlim([xlow-xmargin, xhigh+xmargin])
     ax.set_ylim([ylow-ymargin, yhigh+ymargin])
 
+    if options['draw_placeholder_lines'] == 1:
+        placeholder_x_length = xlen * 0.5  # Using half of xlen for placeholder
+        for w in wells:
+            xmin = w.x - placeholder_x_length / 2
+            xmax = w.x + placeholder_x_length / 2
+            ax.hlines(y=w.y, xmin=xmin, xmax=xmax, color='gray', linestyle='--', linewidth=options['lw'])
+        for b in bimolecs:
+            xmin = b.x - placeholder_x_length / 2
+            xmax = b.x + placeholder_x_length / 2
+            ax.hlines(y=b.y, xmin=xmin, xmax=xmax, color='gray', linestyle='--', linewidth=options['lw'])
+
     # write the name and energies to the plot
     textd.clear()
     for w in wells:
@@ -1096,91 +1114,138 @@ def generate_2d_depiction():
         if os.path.isfile(png_filename.format(id=options['id'], name=m.name,
                                               confid='')):
             return
-        try:
-            if options['reso_2d']:
-                try:
-                    reson_mols = gen_reso_structs(smi, min_rads=True)
-                except RuntimeError:
-                    print(f'Warning: Unable to generate resonant structure for '
-                          f'{smi}.')
-                    options['reso_2d'] = 0
-            else:
-                mol = Chem.MolFromSmiles(smi, sanitize=False)
-                mol.UpdatePropertyCache(strict=False)
-                Chem.SanitizeMol(mol, Chem.SanitizeFlags.SANITIZE_FINDRADICALS
-                                 | Chem.SanitizeFlags.SANITIZE_KEKULIZE
-                                 | Chem.SanitizeFlags.SANITIZE_SETAROMATICITY
-                                 | Chem.SanitizeFlags.SANITIZE_SETCONJUGATION
-                                 | Chem.SanitizeFlags.SANITIZE_SETHYBRIDIZATION
-                                 | Chem.SanitizeFlags.SANITIZE_SYMMRINGS,
-                                 catchErrors=True)
-                reson_mols = [mol]
 
-            resol = 5
-            size_x = 100 * resol
-
-            # NEW METHOD
-            # opts = Draw.rdMolDraw2D.MolDrawOptions()  # New way
-            # opts.minFontSize = 30 * resol
-            # opts.maxFontSize = 9 * resol
-            # opts.bondLineWidth = 1 * resol
-            # opts.padding = 0.15
-            # opts.noAtomLabels = True
-
-            # OLD METHOD (cannot use Draw.MolToImage or Draw.MolToFile):
-            opts = Draw.DrawingOptions()
-            opts.dotsPerAngstrom = 15 * resol
-            opts.atomLabelFontSize = 9 * resol
-            opts.bondLineWidth = 1 * resol
-            opts.radicalSymbol = '•'
-            for i, mol in enumerate(reson_mols):
-                AllChem.Compute2DCoords(mol)
-                cc = mol.GetConformer()
-                xx = []
-                yy = []
-                for j in range(cc.GetNumAtoms()):
-                    pos = cc.GetAtomPosition(j)
-                    xx.append(pos.x)
-                    yy.append(pos.y)
-                sc = 50
-                dx = round(max(xx) - min(xx)) * sc
-                dy = round(max(yy) - min(yy)) * sc
-                size_x = round(size_x * (1 + (max(dx, dy) - 200) / 500))
-                size = (size_x,) * 2
-                # NEW METHOD
-                # img = Draw.MolToImage(mol, kekulize=False, wedgeBonds=False,
-                #                       options=opts, size=size)
-
-                # OLD METHOD (cannot use Draw.MolToImage or Draw.MolToFile):
-                img = Image.new("RGBA", tuple(size))
-                canvas = Canvas(img)
-                drawer = Draw.MolDrawing(canvas=canvas, drawingOptions=opts)
-                drawer.AddMol(mol)
-                canvas.flush()
-
-                # Convert each white pixel to transparent.
-                pixels = img.getdata()
-                new_pixels = []
-                for pix in pixels:
-                    if pix == (255, 255, 255, 255):
-                        new_pixels.append((255, 255, 255, 0))
-                    else:
-                        new_pixels.append(pix)
-                img.putdata(new_pixels)
-
-                if 'IRC' in m.name:
-                    img = Image.new("RGB", (1,1), (255, 255, 255, 0))
-
-                if i == 0:
-                    img.save(png_filename.format(id=options['id'], name=m.name,
-                                                 confid=''))
-                else:
-                    img.save(png_filename.format(id=options['id'], name=m.name,
-                                                 confid=f'_{i}'))
-        except (NameError, RuntimeError):
+        if options['rdkit4depict'] == 1:
             try:
-                options['rdkit4depict'] = 0
+                if options['reso_2d']:
+                    try:
+                        reson_mols = gen_reso_structs(smi, min_rads=True)
+                    except RuntimeError:
+                        print(f'Warning: Unable to generate resonant structure for '
+                              f'{smi}.')
+                        # Fall back to OpenBabel if RDKit resonance fails or drawing options fail
+                        raise RuntimeError("RDKit drawing failed, try OpenBabel") 
+                else:
+                    mol = Chem.MolFromSmiles(smi, sanitize=False)
+                    mol.UpdatePropertyCache(strict=False)
+                    Chem.SanitizeMol(mol, Chem.SanitizeFlags.SANITIZE_FINDRADICALS
+                                     | Chem.SanitizeFlags.SANITIZE_KEKULIZE
+                                     | Chem.SanitizeFlags.SANITIZE_SETAROMATICITY
+                                     | Chem.SanitizeFlags.SANITIZE_SETCONJUGATION
+                                     | Chem.SanitizeFlags.SANITIZE_SETHYBRIDIZATION
+                                     | Chem.SanitizeFlags.SANITIZE_SYMMRINGS,
+                                     catchErrors=True)
+                    reson_mols = [mol]
+
+                resol = 5
+                size_x = 100 * resol
+
+                opts = Draw.DrawingOptions()
+                opts.dotsPerAngstrom = 15 * resol
+                opts.atomLabelFontSize = 9 * resol
+                opts.bondLineWidth = 1 * resol
+                opts.radicalSymbol = '•'
+                for i, mol_to_draw in enumerate(reson_mols): # renamed mol to mol_to_draw
+                    AllChem.Compute2DCoords(mol_to_draw)
+                    cc = mol_to_draw.GetConformer()
+                    xx = []
+                    yy = []
+                    for j in range(cc.GetNumAtoms()):
+                        pos = cc.GetAtomPosition(j)
+                        xx.append(pos.x)
+                        yy.append(pos.y)
+                    sc = 50
+                    dx = round(max(xx) - min(xx)) * sc
+                    dy = round(max(yy) - min(yy)) * sc
+                    size_x = round(size_x * (1 + (max(dx, dy) - 200) / 500))
+                    size = (size_x,) * 2
+                    
+                    img = Image.new("RGBA", tuple(size))
+                    # Ensure Canvas is available if we reach here with rdkit4depict = 1
+                    if Canvas is None:
+                        raise ModuleNotFoundError("RDKit cairoCanvas not found, cannot draw with RDKit.")
+                    canvas = Canvas(img)
+                    drawer = Draw.MolDrawing(canvas=canvas, drawingOptions=opts)
+                    drawer.AddMol(mol_to_draw)
+                    canvas.flush()
+
+                    pixels = img.getdata()
+                    new_pixels = []
+                    for pix in pixels:
+                        if pix == (255, 255, 255, 255):
+                            new_pixels.append((255, 255, 255, 0))
+                        else:
+                            new_pixels.append(pix)
+                    img.putdata(new_pixels)
+
+                    if 'IRC' in m.name:
+                        img = Image.new("RGB", (1,1), (255, 255, 255, 0))
+
+                    if i == 0:
+                        img.save(png_filename.format(id=options['id'], name=m.name,
+                                                     confid=''))
+                    else:
+                        img.save(png_filename.format(id=options['id'], name=m.name,
+                                                     confid=f'_{i}'))
+            except (NameError, RuntimeError, AttributeError, ModuleNotFoundError): # Broader exception capture for RDKit issues
+                # This block now serves as the fallback to OpenBabel if RDKit fails
+                options['rdkit4depict'] = 0 # Ensure it's set for the OpenBabel part
+                # The rest of this except block is now the OpenBabel drawing logic
+                try:
+                    obmol = pybel.readstring("smi", smi)
+                    obmol.draw(show=False, filename=png_filename.format(id=options['id'],
+                                                                        name=m.name,
+                                                                        confid=''))
+                    img = Image.open(png_filename.format(id=options['id'],
+                                                         name=m.name,
+                                                         confid=''))
+                    new_size = (280, 280)
+                    im_new = Image.new("RGB", new_size, 'white')
+                    im_new.paste(img, ((new_size[0] - img.size[0]) // 2,
+                                       (new_size[1] - img.size[1]) // 2))
+                    im_new.save(png_filename.format(id=options['id'], name=m.name,
+                                                    confid=''))
+                except NameError: # This is for pybel failing
+                    print('Could not generate 2d for {n} using OpenBabel'.format(n=m.name))
+                    return
+        else: # This is the new 'else' for options['rdkit4depict'] == 0
+            # OpenBabel drawing logic
+            try:
                 obmol = pybel.readstring("smi", smi)
+                obmol.draw(show=False, filename=png_filename.format(id=options['id'],
+                                                                    name=m.name,
+                                                                    confid=''))
+                img = Image.open(png_filename.format(id=options['id'],
+                                                     name=m.name,
+                                                     confid=''))
+                new_size = (280, 280)
+                im_new = Image.new("RGB", new_size, 'white')
+                im_new.paste(img, ((new_size[0] - img.size[0]) // 2,
+                                   (new_size[1] - img.size[1]) // 2))
+                im_new.save(png_filename.format(id=options['id'], name=m.name,
+                                                confid=''))
+            except NameError: # This is for pybel failing
+                print('Could not generate 2d for {n} using OpenBabel'.format(n=m.name))
+                return
+
+    # end def
+    # make the directory with the 2d depictions, if not yet available
+        # This block is removed as it's now part of the conditional logic above
+        # based on options['rdkit4depict']
+        # try:
+        #     if options['reso_2d']:
+        #         ...
+        #     else:
+        #         mol = Chem.MolFromSmiles(smi, sanitize=False)
+        #         ...
+        #         reson_mols = [mol]
+        #
+        #     ... RDKit drawing code ...
+        #
+        # except (NameError, RuntimeError):
+        #     try:
+        #         options['rdkit4depict'] = 0 # This was the old fallback
+        #         obmol = pybel.readstring("smi", smi)
                 obmol.draw(show=False, filename=png_filename.format(id=options['id'],
                                                                     name=m.name,
                                                                     confid=''))
@@ -1704,4 +1769,3 @@ def pesviewer(fname=None):
 
 if __name__ == "__main__":
     main()
-

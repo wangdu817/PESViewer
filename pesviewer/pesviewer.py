@@ -4,6 +4,7 @@ transition states andbarrierless reactions and creates a PES plot
 import os
 import sys
 import math
+import io
 
 import matplotlib
 matplotlib.use('TkAgg')
@@ -13,7 +14,6 @@ import numpy as np
 import numpy.linalg as la
 from rdkit import Chem
 from rdkit.Chem import Draw, AllChem
-from rdkit.Chem.Draw.cairoCanvas import Canvas
 from openbabel import pybel
 from PIL import Image
 import networkx as nx
@@ -1189,11 +1189,13 @@ def generate_2d_depiction():
             # opts.noAtomLabels = True
 
             # OLD METHOD (cannot use Draw.MolToImage or Draw.MolToFile):
-            opts = Draw.DrawingOptions()
-            opts.dotsPerAngstrom = 15 * resol
+            # The following Draw.DrawingOptions() are used to set parameters for MolDraw2DCairo
+            opts = Draw.DrawingOptions() 
+            # opts.dotsPerAngstrom = 15 * resol # Not directly mapped; size is explicit in MolDraw2DCairo
             opts.atomLabelFontSize = 9 * resol
             opts.bondLineWidth = 1 * resol
             opts.radicalSymbol = '•'
+
             for i, mol in enumerate(reson_mols):
                 AllChem.Compute2DCoords(mol)
                 cc = mol.GetConformer()
@@ -1208,16 +1210,22 @@ def generate_2d_depiction():
                 dy = round(max(yy) - min(yy)) * sc
                 size_x = round(size_x * (1 + (max(dx, dy) - 200) / 500))
                 size = (size_x,) * 2
-                # NEW METHOD
-                # img = Draw.MolToImage(mol, kekulize=False, wedgeBonds=False,
-                #                       options=opts, size=size)
+                
+                # NEW METHOD using MolDraw2DCairo:
+                d2d = Draw.rdMolDraw2D.MolDraw2DCairo(size[0], size[1])
+                draw_options = d2d.drawOptions()
+                draw_options.atomLabelFontSize = opts.atomLabelFontSize
+                draw_options.bondLineWidth = opts.bondLineWidth
+                draw_options.radicalSymbol = opts.radicalSymbol
+                # If there are other options from opts that need mapping, add them here.
+                # For example, if color schemes or other details were set on original opts.
+                # Note: some options like dotsPerAngstrom are handled differently (by explicit size).
 
-                # OLD METHOD (cannot use Draw.MolToImage or Draw.MolToFile):
-                img = Image.new("RGBA", tuple(size))
-                canvas = Canvas(img)
-                drawer = Draw.MolDrawing(canvas=canvas, drawingOptions=opts)
-                drawer.AddMol(mol)
-                canvas.flush()
+                d2d.DrawMolecule(mol)
+                d2d.FinishDrawing()
+                png_data = d2d.GetDrawingText()
+                img = Image.open(io.BytesIO(png_data))
+                # The rest of the image processing (making white pixels transparent, saving) should remain.
 
                 # Convert each white pixel to transparent.
                 pixels = img.getdata()

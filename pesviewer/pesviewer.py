@@ -191,7 +191,10 @@ class line:
     the chemstructs are the reactant and ts (f orward),
     ts and product (reverse), or reactant and product (barrierless)
     """
-    def __init__(self, x1, y1, x2, y2, chemstruct=None, col='black'):
+    def __init__(self, x1, y1, x2, y2, chemstruct=None, col='black', line_type='curve'):
+        # line_type influences self.straight_line.
+        # 'curve' (default) means polynomial unless line is vertical/horizontal.
+        # 'straight' forces self.straight_line to True.
         if x1 <= x2:
             self.xmin = x1
             self.y1 = y1  # y1 corresponds to xmin
@@ -203,12 +206,14 @@ class line:
             self.xmax = x1
             self.y2 = y1  # y2 corresponds to xmax
         # end if
-        
-        
-        if x1 == x2 or y1 == y2:
+
+        if x1 == x2 or y1 == y2: # Inherently straight (vertical or horizontal)
             self.straight_line = True
             self.coeffs = []
-        else:
+        elif line_type == 'straight': # User-defined straight line
+            self.straight_line = True
+            self.coeffs = []
+        else: # Default to curved (polynomial)
             self.straight_line = False
             self.coeffs = get_polynomial(self.xmin, self.y1,
                                          self.xmax, self.y2)
@@ -434,6 +439,8 @@ def read_input(fname):
     options['text_size'] = 10
     # use linear lines instead of a polynomial
     options['linear_lines'] = 0
+    # Dictionary to store custom line styles (e.g., 'straight' or 'curve') for specific reaction segments.
+    options['line_styles'] = {}
     # image interpolation
     options['interpolation'] = 'hanning'
     # graphs edge color, if set to 'energy', will be colored by that
@@ -530,6 +537,25 @@ def read_input(fname):
     else:
         print('Warning, the input file arcitecture has changed,' +
               'use an "options" input tag to put all the options')
+    # end if
+
+    # Parse the > <line_styles> block if present.
+    # Expected format:
+    # > <line_styles>
+    # TS_name:reactant straight
+    # TS_name:product curve
+    # Barrierless_name straight
+    # ...
+    # Keys are either "<TS_name>:reactant", "<TS_name>:product", or "<Barrierless_name>".
+    # Values are "straight" or "curve".
+    if 'line_styles' in input_dict:
+        for line_style_entry in input_dict['line_styles']:
+            parts = line_style_entry.split()
+            if len(parts) == 2:
+                options['line_styles'][parts[0]] = parts[1]
+            else:
+                print(f"Warning: Malformed line_style entry: {line_style_entry}")
+        # end for
     # end if
 
     if options['display_units'] is None:
@@ -745,28 +771,40 @@ def generate_lines():
     and creates lines accordingly depending on the x and y coordinates
     """
     for t in tss:
+        # Construct key for reactant-to-TS segment: "TS_name:reactant"
+        style_key_rts = f"{t.name}:reactant"
+        line_type_rts = options['line_styles'].get(style_key_rts, 'curve')
         line1 = line(t.x,
                      t.y,
                      t.reactant.x,
                      t.reactant.y,
                      [t, t.reactant],
-                     col=t.color)
+                     col=t.color,
+                     line_type=line_type_rts)
+        # Construct key for TS-to-product segment: "TS_name:product"
+        style_key_tsp = f"{t.name}:product"
+        line_type_tsp = options['line_styles'].get(style_key_tsp, 'curve')
         line2 = line(t.x,
                      t.y,
                      t.product.x,
                      t.product.y,
                      [t, t.product],
-                     col=t.color)
+                     col=t.color,
+                     line_type=line_type_tsp)
         t.lines.append(line1)
         t.lines.append(line2)
     # end for
     for b in barrierlesss:
+        # Construct key for barrierless reaction: "Barrierless_name"
+        style_key_b = f"{b.name}"
+        line_type_b = options['line_styles'].get(style_key_b, 'curve')
         b.line = line(b.reactant.x,
                       b.reactant.y,
                       b.product.x,
                       b.product.y,
                       [b, b.reactant, b.product],
-                      col=b.color)
+                      col=b.color,
+                      line_type=line_type_b)
     # end for
 # end def
 
@@ -890,64 +928,87 @@ def plot():
     if options['linear_lines']:
         xlen = (len(wells) + len(bimolecs)) / (4 * (xhigh - xlow))
     
-    for line in lines:
+    for segment_line in lines:
         lw = options['lw']
         alpha = 1.0
         ls = 'solid'
-        if line.color == 'dotted':
+        if segment_line.color == 'dotted':
             ls = 'dotted'
-            line.color = 'gray'
-#        elif line.color == 'blue' or line.color == 'b':
+            segment_line.color = 'gray'
+#        elif segment_line.color == 'blue' or segment_line.color == 'b':
 #            ls = 'dashed'
-        if line.straight_line:
-            if line.xmin == line.xmax:  # plot a vertical line
-                ymin = min(line.y1, line.y2)
-                ymax = max(line.y1, line.y2)
-                a = ax.vlines(x=line.xmin,
-                              ymin=ymin,
-                              ymax=ymax,
-                              color=line.color,
-                              ls=ls,
-                              linewidth=lw,
-                              alpha=alpha)
-                for struct in line.chemstruct:
-                    # add to the lines dictionary
-                    linesd[struct].append(a)
-                # end for
-            else:  # plot a horizontal line
-                a = ax.hlines(y=line.y1,
-                              xmin=line.xmin,
-                              xmax=line.xmax,
-                              color=line.color,
-                              linewidth=lw,
-                              alpha=alpha)
-                for struct in line.chemstruct:
-                    # add to the lines dictionary
-                    linesd[struct].append(a)
-                # end for
-            # end if
+
+        plot_artist_list = None
+        # segment_line.straight_line is True if:
+        # 1. The line is inherently vertical or horizontal (x1==x2 or y1==y2).
+        # 2. The user specified 'straight' for this segment in 'line_styles'.
+        if segment_line.straight_line:
+            # Draw a direct straight line (covers vertical, horizontal, or user-defined straight)
+            plot_artist_list = ax.plot([segment_line.xmin, segment_line.xmax], 
+                                       [segment_line.y1, segment_line.y2],
+                                       color=segment_line.color,
+                                       ls=ls,
+                                       linewidth=lw,
+                                       alpha=alpha)
         else:
+            # Not a straight_line by definition, so it's either stepped linear or curved
+            # options['linear_lines'] is a global override for all non-straight lines to be drawn as stepped.
             if options['linear_lines']:
-                xlist = [line.xmin, line.xmin + xlen / 2,
-                         line.xmax - xlen / 2, line.xmax]
-                y = [line.y1, line.y1, line.y2, line.y2]
+                # Global override for stepped linear representation
+                xlist_plot = [segment_line.xmin, segment_line.xmin + xlen / 2,
+                              segment_line.xmax - xlen / 2, segment_line.xmax]
+                y_plot = [segment_line.y1, segment_line.y1, segment_line.y2, segment_line.y2]
+                plot_artist_list = ax.plot(xlist_plot,
+                                           y_plot,
+                                           color=segment_line.color,
+                                           ls=ls,
+                                           linewidth=lw,
+                                           alpha=alpha)
             else:
-                xlist = np.arange(line.xmin,
-                                  line.xmax,
-                                  (line.xmax-line.xmin) / 1000)
-                a = line.coeffs
-                y = a[0]*xlist**3 + a[1]*xlist**2 + a[2]*xlist + a[3]
-            pl = ax.plot(xlist,
-                         y,
-                         color=line.color,
-                         ls=ls,
-                         linewidth=lw,
-                         alpha=alpha)
-            for struct in line.chemstruct:
+                # Polynomial curved line
+                coeffs_plot = segment_line.coeffs
+                if not coeffs_plot:
+                    # Safeguard: Should not happen if straight_line is False, but draw straight if it does
+                    print(f"Error: segment_line {segment_line} has no coeffs for curved drawing. Drawing straight.")
+                    plot_artist_list = ax.plot([segment_line.xmin, segment_line.xmax],
+                                               [segment_line.y1, segment_line.y2],
+                                               color=segment_line.color,
+                                               ls=ls,
+                                               linewidth=lw,
+                                               alpha=alpha)
+                else:
+                    xlist_plot = np.arange(segment_line.xmin,
+                                           segment_line.xmax,
+                                           (segment_line.xmax - segment_line.xmin) / 1000)
+                    # Ensure xlist_plot is not empty if xmin is very close to xmax
+                    if len(xlist_plot) == 0 and segment_line.xmin != segment_line.xmax :
+                        xlist_plot = np.array([segment_line.xmin, segment_line.xmax])
+                    elif len(xlist_plot) == 0 and segment_line.xmin == segment_line.xmax: # Should be caught by straight_line
+                         print(f"Warning: segment_line {segment_line} has xmin==xmax but not straight. Drawing vertical.")
+                         plot_artist_list = ax.plot([segment_line.xmin, segment_line.xmax],
+                                                    [segment_line.y1, segment_line.y2],
+                                                    color=segment_line.color,
+                                                    ls=ls,
+                                                    linewidth=lw,
+                                                    alpha=alpha)
+
+                    if not plot_artist_list: # if not drawn by a safeguard
+                        y_plot = coeffs_plot[0]*xlist_plot**3 + coeffs_plot[1]*xlist_plot**2 + \
+                                 coeffs_plot[2]*xlist_plot + coeffs_plot[3]
+                        plot_artist_list = ax.plot(xlist_plot,
+                                                   y_plot,
+                                                   color=segment_line.color,
+                                                   ls=ls,
+                                                   linewidth=lw,
+                                                   alpha=alpha)
+        
+        if plot_artist_list:
+            for struct in segment_line.chemstruct:
                 # add to the lines dictionary
-                linesd[struct].append(pl)
+                if struct not in linesd: # Ensure key exists
+                    linesd[struct] = []
+                linesd[struct].append(plot_artist_list)
             # end for
-        # end if
     # end for
     ax.set_xlim([xlow-xmargin, xhigh+xmargin])
     ax.set_ylim([ylow-ymargin, yhigh+ymargin])
@@ -1704,4 +1765,3 @@ def pesviewer(fname=None):
 
 if __name__ == "__main__":
     main()
-

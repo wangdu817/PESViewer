@@ -1,16 +1,15 @@
 > <comments>
+Copyright 2018 National Technology & Engineering Solutions of Sandia,
+LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, 
+the U.S. Government retains certain rights in this software.
+
 This comment is not interpreted, so store any extra info here.
 Keywords are case insensitive. Look at the help below.
 IMPORTANT: avoid the use of '2d' and '3d' in the names of species, transition states and reactions
 (these strings are employed when generating the 2d and 3d files of the molecules)
 If you want to use 3D coordinates, store them in a xyz/ directory in the same directory as the python script
 
-This example is based on figure 1 in the article: 
-J Zador et al.  Phys Chem Chem Phys 11 (46), 11040-11053. 2009 Oct 13.
-
- 
- 
-> <id> propene_hydroxyl
+> <id> propenoyl
 
 > <options> 
 title              0         # print a title (1) or not (0) 
@@ -28,59 +27,35 @@ bimol_color        red       # color of the energy values for the bimolecular pr
 well_color         blue      # color of the energy values of the wells
 ts_color           green     # color or the energy values of the ts, put to 'none' to use same color as line
 show_images        1         # boolean tells whether the molecule images should be shown on the graph
-rdkit4depict       0         # boolean that specifies which code to use for the 2D depiction
-axes_size          10        # font size of the axes
+rdkit4depict       1         # boolean that specifies which code was used for the 2D depiction
+axes_size          15        # font size of the axes
 text_size          10        # font size of the energy values on the graph
-linear_lines       0         # plot polynomials (0) or linear lines (1) between de stationary points
-# Enable drawing of placeholder lines for wells and bimolecular products
+graph_edge_color   black     # color of graph edge, if set to 'energy', will be scaled accordingly
+reso_2d            1         # generate resonant structures and choose the best
 draw_placeholder_lines 1
-graph_edge_color   None      # color of graph edge, if set to 'energy', will be scaled accordingly
 
 > <wells> 
-vdW -2.2 C[CH]CO
-b_rad -27.2 C[CH]CO
-a_rad -30.9 CC[CH]O
-o_rad -24.9 CCC[O]
-c_rad -20.9 [CH2]CCO
+421040900520060000002 0.00
+421040880520080000002 -8.28
+421281921200080000002 8.39 up
+421301881200100000002 20.45
 
 > <bimolec> 
-propene_oh 0. C=CC O
-allylalcohol_h 7.9 C=CCO [H]
-propenol_h 2.1 OC=CC [H]
-ethene_CH2OH -5.3 C=C [CH2]O
-propanal_h -6.8 CCC=O [H]
-vinylalcohol_methyl -9.0 C=CO [CH3]
-ethyl_formaldehyde -11.6 [CH2]C C=O
-oxetane_h 19.6 C1CCO1 [H]
-epoxypropane_h 16.1 CC1OC1 [H]
-cyclopropanol_h 14.4 C1CC1O [H]
+10000000000000000002_410910750390000000001 28.51
+150390060000000000002_270390150000000000001 -1.33
+10000000000000000002_411151620880040000001 51.85
 
 > <ts> 
-entrance -1.8 vdW b_rad
-cycl1 31.8 b_rad epoxypropane_h
-isom1 12.9 b_rad a_rad
-beta1 6.2 b_rad propenol_h
-isom2 13.1 b_rad o_rad
-isom3 5.6 b_rad c_rad
-beta2 9.6 b_rad allylalcohol_h
-isom4 12.7 a_rad o_rad
-cycl2 30.4 a_rad cyclopropanol_h
-isom5 6.6 a_rad c_rad
-beta3 3.7 a_rad propenol_h
-beta4 3.6 a_rad propanal_h
-beta5 0.1 a_rad vinylalcohol_methyl
-isom6 -0.1 o_rad c_rad
-cycl3 36.7 o_rad oxetane_h
-cycl4 35.0 o_rad cyclopropanol_h
-beta6 10.9 o_rad allylalcohol_h
-alpha1 2.7  o_rad ethene_CH2OH
-cycl5 41.9 c_rad oxetane_h
-cycl6 31.6 c_rad epoxypropane_h
-beta7 -0.6 c_rad propanal_h
-beta8 -6.6 c_rad ethyl_formaldehyde
+421040900520060000002_intra_H_migration_3_5 48.37 421040900520060000002 421040880520080000002 
+421040900520060000002_r12_insertion_R_4_3_2 30.82 421040900520060000002 10000000000000000002_410910750390000000001 
+421040900520060000002_R_Addition_MultipleBond_3_2_1 20.31 421040900520060000002 150390060000000000002_270390150000000000001 
+421281921200080000002_intra_H_migration_2_4 53.63 421281921200080000002 421301881200100000002 
+421281921200080000002_r12_insertion_R_2_1_3 36.19 421281921200080000002 421040880520080000002 
+421281921200080000002_r12_insertion_R_5_3_2 56.08 421281921200080000002 10000000000000000002_411151620880040000001 
+421301881200100000002_h2_elim_2_7 56.19 421301881200100000002 10000000000000000002_411151620880040000001
 
 > <barrierless> 
-b1 propene_oh vdW 
+
 
 > <help>
 File follows the rules of SD file format for keywords. Keywords are case
@@ -103,5 +78,3 @@ each line contains the name, the energy, and the names of the reactant and produ
 
 barrierless: all the barrierless reactions of the PES, separated by lines
 each line contains the name and the names of the reactant and product
-
-

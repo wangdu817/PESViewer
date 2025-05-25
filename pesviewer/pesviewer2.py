@@ -6,7 +6,19 @@ import sys
 import math
 
 import matplotlib
-matplotlib.use('TkAgg')
+# 强制设置GUI后端，确保可以显示图形
+try:
+    matplotlib.use('TkAgg', force=True)
+except ImportError:
+    try:
+        matplotlib.use('Qt5Agg', force=True)
+    except ImportError:
+        try:
+            matplotlib.use('Qt4Agg', force=True)
+        except ImportError:
+            print("Warning: No GUI backend available, using Agg backend")
+            matplotlib.use('Agg', force=True)
+
 from matplotlib import pylab as plt  # translate into pyplot.
 import matplotlib.image as mpimg
 import numpy as np
@@ -970,7 +982,15 @@ def plot():
     if options['save']:
         plt.savefig(f'{options["id"]}_pes_plot.png', bbox_inches='tight')
     else:
-        plt.show()
+        # 检查后端是否支持GUI显示
+        current_backend = matplotlib.get_backend()
+        if current_backend.lower() == 'agg':
+            print(f"Warning: Current backend is {current_backend}, which cannot display figures.")
+            print("Saving figure instead...")
+            plt.savefig(f'{options["id"]}_pes_plot.png', bbox_inches='tight')
+            print(f"Figure saved as {options['id']}_pes_plot.png")
+        else:
+            plt.show()
 # end def
 
 

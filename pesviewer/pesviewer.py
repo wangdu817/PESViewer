@@ -6,7 +6,7 @@ import sys
 import math
 
 import matplotlib
-matplotlib.use('Agg')  # Changed from TkAgg to Agg
+matplotlib.use('TkAgg')
 from matplotlib import pylab as plt  # translate into pyplot.
 import matplotlib.image as mpimg
 import numpy as np
@@ -22,7 +22,7 @@ from PIL import Image
 import networkx as nx
 from pyvis import network as net
 
-from pesviewer.gen_resonant_structs import gen_reso_structs
+from gen_resonant_structs import gen_reso_structs
 
 pybel.ob.obErrorLog.SetOutputLevel(0)
 # contains all the options for this PES
@@ -52,6 +52,9 @@ linesd = {}
 imgsd = {}
 # extents of the images
 extsd = {}
+# placeholder lines dictionary: key is the chemical structure,
+# value is the placeholder line object
+placeholder_linesd = {}
 
 
 class dragimage(object):
@@ -453,6 +456,8 @@ def read_input(fname):
     options['node_size_diff'] = 0
     # Whether to draw placeholder lines for missing images
     options['draw_placeholder_lines'] = 0
+    # Scale factor for placeholder line length
+    options['placeholder_scale'] = 1.0
 
     if 'options' in input_dict:
         for line in input_dict['options']:
@@ -524,6 +529,8 @@ def read_input(fname):
                 options['node_size_diff'] = float(line.split()[1])
             elif line.startswith('draw_placeholder_lines'):
                 options['draw_placeholder_lines'] = int(line.split()[1])
+            elif line.startswith('placeholder_scale'):
+                options['placeholder_scale'] = float(line.split()[1])
             elif line.startswith('#'):
                 # comment line, don't do anything
                 continue
@@ -746,32 +753,76 @@ def position():
 # end def
 
 
+def setup_placeholder_lines():
+    """
+    Set up the line segment endpoints for wells and bimolecs if placeholder lines are enabled.
+    This must be called before generate_lines().
+    """
+    if options['draw_placeholder_lines'] == 1:
+        # Use fixed placeholder line length with configurable scale factor
+        base_length = 0.5  # Fixed base length
+        placeholder_x_length = base_length * options['placeholder_scale']
+        
+        # Store the line segment endpoints for wells and bimolecs
+        for w in wells:
+            w.xmin = w.x - placeholder_x_length / 2
+            w.xmax = w.x + placeholder_x_length / 2
+        
+        for b in bimolecs:
+            b.xmin = b.x - placeholder_x_length / 2
+            b.xmax = b.x + placeholder_x_length / 2
+
+
+def get_connection_point(species, target_x):
+    """
+    Get the connection point for a species (well or bimolec).
+    If placeholder lines are enabled, return the appropriate endpoint.
+    Otherwise, return the center point.
+    """
+    if options['draw_placeholder_lines'] == 1 and hasattr(species, 'xmin') and hasattr(species, 'xmax'):
+        # Connect to the closer endpoint of the line segment
+        if target_x < species.x:
+            return species.xmin, species.y  # Connect to left endpoint
+        else:
+            return species.xmax, species.y  # Connect to right endpoint
+    else:
+        return species.x, species.y  # Connect to center point
+
+
 def generate_lines():
     """
     The method loops over the transition states and barrierless reactions
     and creates lines accordingly depending on the x and y coordinates
     """
     for t in tss:
+        # Get connection points for reactant and product
+        reactant_x, reactant_y = get_connection_point(t.reactant, t.x)
+        product_x, product_y = get_connection_point(t.product, t.x)
+        
         line1 = line(t.x,
                      t.y,
-                     t.reactant.x,
-                     t.reactant.y,
+                     reactant_x,
+                     reactant_y,
                      [t, t.reactant],
                      col=t.color)
         line2 = line(t.x,
                      t.y,
-                     t.product.x,
-                     t.product.y,
+                     product_x,
+                     product_y,
                      [t, t.product],
                      col=t.color)
         t.lines.append(line1)
         t.lines.append(line2)
     # end for
     for b in barrierlesss:
-        b.line = line(b.reactant.x,
-                      b.reactant.y,
-                      b.product.x,
-                      b.product.y,
+        # Get connection points for reactant and product
+        reactant_x, reactant_y = get_connection_point(b.reactant, b.product.x)
+        product_x, product_y = get_connection_point(b.product, b.reactant.x)
+        
+        b.line = line(reactant_x,
+                      reactant_y,
+                      product_x,
+                      product_y,
                       [b, b.reactant, b.product],
                       col=b.color)
     # end for
@@ -935,9 +986,15 @@ def plot():
             # end if
         else:
             if options['linear_lines']:
-                xlist = [line.xmin, line.xmin + xlen / 2,
-                         line.xmax - xlen / 2, line.xmax]
-                y = [line.y1, line.y1, line.y2, line.y2]
+                if options['draw_placeholder_lines'] == 1:
+                    # When placeholder lines are enabled, draw straight lines without horizontal segments
+                    xlist = [line.xmin, line.xmax]
+                    y = [line.y1, line.y2]
+                else:
+                    # Original linear lines with horizontal segments
+                    xlist = [line.xmin, line.xmin + xlen / 2,
+                             line.xmax - xlen / 2, line.xmax]
+                    y = [line.y1, line.y1, line.y2, line.y2]
             else:
                 xlist = np.arange(line.xmin,
                                   line.xmax,
@@ -960,21 +1017,28 @@ def plot():
     ax.set_ylim([ylow-ymargin, yhigh+ymargin])
 
     if options['draw_placeholder_lines'] == 1:
-        placeholder_x_length = xlen * 0.5  # Using half of xlen for placeholder
+        # Draw horizontal line segments at the energy levels
         for w in wells:
-            xmin = w.x - placeholder_x_length / 2
-            xmax = w.x + placeholder_x_length / 2
-            ax.hlines(y=w.y, xmin=xmin, xmax=xmax, color='gray', linestyle='--', linewidth=options['lw'])
+            if hasattr(w, 'xmin') and hasattr(w, 'xmax'):
+                line_obj = ax.hlines(y=w.y, xmin=w.xmin, xmax=w.xmax, color='black', linestyle='-', linewidth=options['lw']*2)
+                placeholder_linesd[w] = line_obj
+        
         for b in bimolecs:
-            xmin = b.x - placeholder_x_length / 2
-            xmax = b.x + placeholder_x_length / 2
-            ax.hlines(y=b.y, xmin=xmin, xmax=xmax, color='gray', linestyle='--', linewidth=options['lw'])
+            if hasattr(b, 'xmin') and hasattr(b, 'xmax'):
+                line_obj = ax.hlines(y=b.y, xmin=b.xmin, xmax=b.xmax, color='black', linestyle='-', linewidth=options['lw']*2)
+                placeholder_linesd[b] = line_obj
 
     # write the name and energies to the plot
     textd.clear()
     for w in wells:
         if options['write_well_values']:
-            y_pos = w.y - ymargin/10 if w.energy_label_pos == 'down' else w.y + ymargin/10
+            if options['draw_placeholder_lines'] == 1:
+                # Position relative to placeholder line with more spacing
+                y_offset = ymargin/6  # Increased spacing for placeholder lines
+                y_pos = w.y - y_offset if w.energy_label_pos == 'down' else w.y + y_offset
+            else:
+                # Original positioning
+                y_pos = w.y - ymargin/10 if w.energy_label_pos == 'down' else w.y + ymargin/10
             va = 'top' if w.energy_label_pos == 'down' else 'bottom'
             t = ax.text(w.x, y_pos, '{:.{}f}'.format(w.y, options['rounding']),
                         fontdict={'size': options['text_size']},
@@ -984,7 +1048,13 @@ def plot():
             textd[w] = t
     for b in bimolecs:
         if options['write_well_values']:
-            y_pos = b.y - ymargin/10 if b.energy_label_pos == 'down' else b.y + ymargin/10
+            if options['draw_placeholder_lines'] == 1:
+                # Position relative to placeholder line with more spacing
+                y_offset = ymargin/6  # Increased spacing for placeholder lines
+                y_pos = b.y - y_offset if b.energy_label_pos == 'down' else b.y + y_offset
+            else:
+                # Original positioning
+                y_pos = b.y - ymargin/10 if b.energy_label_pos == 'down' else b.y + ymargin/10
             va = 'top' if b.energy_label_pos == 'down' else 'bottom'
             t = ax.text(b.x, y_pos, '{:.{}f}'.format(b.y, options['rounding']),
                         fontdict={'size': options['text_size']},
@@ -1300,6 +1370,17 @@ def updateplot(struct, x_change):
     plt.gca().set_xlim([xlow-xmargin, xhigh+xmargin])
     plt.gca().set_ylim([ylow-ymargin, yhigh+ymargin])
     ratio = (xhigh - xlow) / (xhigh_old - xlow_old)
+    
+    # Update placeholder line endpoints if enabled
+    if options['draw_placeholder_lines'] == 1:
+        setup_placeholder_lines()
+        # Update the placeholder line for the moved structure
+        if struct in placeholder_linesd and hasattr(struct, 'xmin') and hasattr(struct, 'xmax'):
+            # Remove old line and create new one
+            placeholder_linesd[struct].remove()
+            line_obj = plt.gca().hlines(y=struct.y, xmin=struct.xmin, xmax=struct.xmax, 
+                                       color='black', linestyle='-', linewidth=options['lw']*2)
+            placeholder_linesd[struct] = line_obj
     # generate new coordinates for the images
     if struct in imgsd:
         old_extent = imgsd[struct].get_extent()
@@ -1315,22 +1396,34 @@ def updateplot(struct, x_change):
             imgsd[key].set_extent(extent=extent)
     # generate new coordinates for the text
     if struct in textd:
-        old_pos = textd[struct].get_position()
-        new_pos = (old_pos[0]+x_change, old_pos[1])
-        textd[struct].set_position(new_pos)
+        if options['draw_placeholder_lines'] == 1:
+            # Recalculate text position based on placeholder line logic
+            if options['write_well_values']:
+                y_offset = ymargin/6  # Same as in plot function
+                y_pos = struct.y - y_offset if struct.energy_label_pos == 'down' else struct.y + y_offset
+                textd[struct].set_position((struct.x, y_pos))
+        else:
+            # Original simple movement
+            old_pos = textd[struct].get_position()
+            new_pos = (old_pos[0]+x_change, old_pos[1])
+            textd[struct].set_position(new_pos)
     # generate new coordinates for the lines
     for t in tss:
         if (struct == t or struct == t.reactant or struct == t.product):
+            # Get updated connection points
+            reactant_x, reactant_y = get_connection_point(t.reactant, t.x)
+            product_x, product_y = get_connection_point(t.product, t.x)
+            
             t.lines[0] = line(t.x,
                               t.y,
-                              t.reactant.x,
-                              t.reactant.y,
+                              reactant_x,
+                              reactant_y,
                               [t, t.reactant],
                               col=t.color)
             t.lines[1] = line(t.x,
                               t.y,
-                              t.product.x,
-                              t.product.y,
+                              product_x,
+                              product_y,
                               [t, t.product],
                               col=t.color)
             for i in range(0, 2):
@@ -1339,9 +1432,15 @@ def updateplot(struct, x_change):
                     print('straight line')
                 else:
                     if options['linear_lines']:
-                        xlist = [li.xmin, li.xmin + xlen / 2,
-                                 li.xmax - xlen / 2, li.xmax]
-                        y = [li.y1, li.y1, li.y2, li.y2]
+                        if options['draw_placeholder_lines'] == 1:
+                            # When placeholder lines are enabled, draw straight lines without horizontal segments
+                            xlist = [li.xmin, li.xmax]
+                            y = [li.y1, li.y2]
+                        else:
+                            # Original linear lines with horizontal segments
+                            xlist = [li.xmin, li.xmin + xlen / 2,
+                                     li.xmax - xlen / 2, li.xmax]
+                            y = [li.y1, li.y1, li.y2, li.y2]
                     else:
                         xlist = np.arange(li.xmin,
                                           li.xmax,
@@ -1356,20 +1455,30 @@ def updateplot(struct, x_change):
     # end for
     for b in barrierlesss:
         if (struct == b.reactant or struct == b.product):
-            b.line = line(b.reactant.x,
-                          b.reactant.y,
-                          b.product.x,
-                          b.product.y,
-                          [b.reactant, b.product],
+            # Get updated connection points
+            reactant_x, reactant_y = get_connection_point(b.reactant, b.product.x)
+            product_x, product_y = get_connection_point(b.product, b.reactant.x)
+            
+            b.line = line(reactant_x,
+                          reactant_y,
+                          product_x,
+                          product_y,
+                          [b, b.reactant, b.product],
                           col=b.color)
             li = b.line
             if li.straight_line:
                 print('straight line')
             else:
                 if options['linear_lines']:
-                    xlist = [li.xmin, li.xmin + xlen / 2,
-                             li.xmax - xlen / 2, li.xmax]
-                    y = [li.y1, li.y1, li.y2, li.y2]
+                    if options['draw_placeholder_lines'] == 1:
+                        # When placeholder lines are enabled, draw straight lines without horizontal segments
+                        xlist = [li.xmin, li.xmax]
+                        y = [li.y1, li.y2]
+                    else:
+                        # Original linear lines with horizontal segments
+                        xlist = [li.xmin, li.xmin + xlen / 2,
+                                 li.xmax - xlen / 2, li.xmax]
+                        y = [li.y1, li.y1, li.y2, li.y2]
                 else:
                     xlist = np.arange(li.xmin, li.xmax, (li.xmax-li.xmin) / 1000)
                     a = li.coeffs
@@ -1744,6 +1853,8 @@ def main(fname=None):
     
     read_im_extent()  # read the position of the images, if known
     position()  # find initial positions for all the species on the graph
+    get_sizes()  # calculate plot dimensions first
+    setup_placeholder_lines()  # set up line segment endpoints if needed
     generate_lines()  # generate all the line
     # generate 2d depiction from the smiles or 3D structure,
     # store them in join(input_id, '_2d')

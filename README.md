@@ -1,10 +1,10 @@
 # PESViewer
 #### Potential energy surface visualizer
 
-This code was originally developed by [Ruben Van de Vijver](https://github.com/rubenvdvijver). 
-Our fork has been developed and improved on top of the original to maintain compatibility with KinBot and integrate new features.
+This code was originally developed by [Ruben Van de Vijver](https://github.com/rubenvdvijver).
+Our fork has been developed and improved on top of the original to maintain compatibility with KinBot and integrate new features, including **enhanced placeholder line functionality** for improved visualization.
 
-PESViewer is a code to depict and analyze a potential energy surface 
+PESViewer is a code to depict and analyze a potential energy surface
 characterized by wells, bimolecular products, transition states and barrierless reactions.
 <!--
 Their energy is needed to plot the potential energy surface.)
@@ -14,6 +14,35 @@ Written values of the energies and 2D plots (structural formulas) of the wells a
 To run PESViewer, you need python >= 3.7, matplotlib, numpy and OpenBabel or RDKit to create 2D plots.
 
 While the code can be used as a standalone application, it is designed to work with KinBot, which automatically generates the input files for PESViewer.
+
+## ✨ Enhanced Placeholder Line Features
+
+PESViewer now includes **advanced placeholder line functionality** that significantly enhances the visualization of potential energy surfaces, especially when molecular structure images are unavailable or when you want to emphasize energy levels.
+
+### Key Placeholder Features:
+
+- **🎯 Placeholder Lines**: Draw horizontal lines at energy levels for wells and bimolecular products
+- **📏 Configurable Scale**: Adjust the length of placeholder lines with the `placeholder_scale` parameter
+- **🔗 Smart Connection Points**: Transition state lines intelligently connect to placeholder line endpoints
+- **📊 Enhanced Energy Visualization**: Better spacing and positioning of energy labels when placeholder lines are active
+- **⚡ Interactive Updates**: Placeholder lines dynamically update when you drag and reposition species
+
+### Benefits and Use Cases:
+
+1. **Missing Structure Images**: When 2D molecular depictions are unavailable, placeholder lines provide clear visual anchors for each species
+2. **Energy Level Emphasis**: Highlight and compare energy levels across different species more effectively
+3. **Cleaner Visualizations**: Reduce visual clutter while maintaining clear energy relationships
+4. **Publication-Ready Plots**: Create professional diagrams suitable for scientific publications
+5. **Educational Materials**: Simplified representations ideal for teaching reaction mechanisms
+
+### Quick Start with Placeholder Lines:
+
+Add these options to your input file to enable placeholder functionality:
+
+```
+draw_placeholder_lines 1      # Enable placeholder lines
+placeholder_scale 1.2         # Make lines 20% longer than default
+```
 
 ## How to Install
 
@@ -65,7 +94,27 @@ For barrierless reactions, a similar approach is followed. The `> <barrierless>`
     name reactant product [color]
 
 ### Options
-The plotting options (to be written in the input file) are listed here. 
+The plotting options (to be written in the input file) are listed here.
+
+#### Example: Using Placeholder Lines
+
+To enable enhanced placeholder line visualization, add these options to your input file:
+
+```
+> <options>
+title              1
+units              kcal/mol
+draw_placeholder_lines 1      # Enable placeholder lines
+placeholder_scale  1.2        # Make lines 20% longer
+linear_lines       1          # Use straight connection lines
+write_well_values  1          # Show energy values
+```
+
+This configuration will:
+- Draw horizontal lines at each species' energy level
+- Make the lines 20% longer than the default size
+- Use straight lines for connections (works well with placeholders)
+- Display energy values with improved spacing
 
 
 | option | default | Description | Scope* |
@@ -101,7 +150,8 @@ The plotting options (to be written in the input file) are listed here.
 | `path_report` | `[]` | Compute the MEP between two species. Format: `chemid_start chemid_end` | TG |
 | `search_cutoff` | `10` | Maximum length (in reactive steps) to search for of the path report. | TG |
 | `node_size_diff` | `0` | Size difference of nodes in the graph depiction based on to their stability. More stable nodes are larger. 0 to make all nodes the same size. Reasonable values: 20-40.| G |
-| `draw_placeholder_lines` | `0` | If set to `1`, a horizontal dashed gray line will be drawn for each well and bimolecular product at its respective energy level. This can be useful as a placeholder if 2D images are not available or to highlight the energy levels. Default is `0` (disabled). | T |
+| `draw_placeholder_lines` | `0` | **Enhanced placeholder functionality**: If set to `1`, horizontal black lines will be drawn for each well and bimolecular product at their respective energy levels. Features smart connection points for transition states, improved energy label spacing, and interactive updates. Ideal when 2D images are unavailable or to emphasize energy levels. Default is `0` (disabled). | T |
+| `placeholder_scale` | `1.0` | **Placeholder line scaling**: Controls the length of placeholder lines when `draw_placeholder_lines` is enabled. Values > 1.0 create longer lines, values < 1.0 create shorter lines. For example, `1.5` makes lines 50% longer than the default. Only effective when `draw_placeholder_lines = 1`. | T |
 
 * This column shows whether the parameter impacts the traditional (T) Potential vs Reaction coordinate PES depiction, the graph (G) one, or both (TG).
 
@@ -121,13 +171,14 @@ When the code runs and the depiction of the molecules is requested, first, all d
 
 **Traditional PES depiction** 
 
-The output is a modifiable matplotlib figure, which can be displayed and interactively arranged, or saved. 
+The output is a modifiable matplotlib figure, which can be displayed and interactively arranged, or saved.
 The possible modifications are:
 - modifing the x-position of a stationary point by draggning the energy value
 - modifing the position of 2D structure images by dragging the image
-- zooming in an out.
+- zooming in an out
+- **placeholder lines automatically update** when species are repositioned (when enabled)
 
-Helper files with `.txt` extension are also generated saving the positions of stationary points and images, which, in certain cases need to be deleted to recreate the plot on subsequent runs (e.g., when changing the `fs` parameter). However, the information about the adjustmens made are stored here.
+Helper files with `.txt` extension are also generated saving the positions of stationary points and images, which, in certain cases need to be deleted to recreate the plot on subsequent runs (e.g., when changing the `fs` parameter or placeholder settings). However, the information about the adjustmens made are stored here.
 
 By selecting a stationary point, all direct neighbors and pathways are lit up, and the others are dimmed to help navigation.
 

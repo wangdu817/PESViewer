@@ -1,0 +1,170 @@
+<html>
+    <head>
+        <meta charset="utf-8">
+        
+            <script src="lib/bindings/utils.js"></script>
+            <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.2/dist/dist/vis-network.min.css" integrity="sha512-WgxfT5LWjfszlPHXRmBWHkV2eceiWTOBvrKCNbdgDYTHrT2AeLCGbF4sZlZw3UMN3WtL0tGUoIAKsu8mllg/XA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.2/dist/vis-network.min.js" integrity="sha512-LnvoEWDFrqGHlHmDD2101OrLcbsfkrzoSpvtSQtxK3RMnRV0eOkhhBN2dXHKRrUU8p2DGRTk35n4O8nWSVe1mQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+            
+        
+<center>
+<h1></h1>
+</center>
+
+<!-- <link rel="stylesheet" href="../node_modules/vis/dist/vis.min.css" type="text/css" />
+<script type="text/javascript" src="../node_modules/vis/dist/vis.js"> </script>-->
+        <link
+          href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/css/bootstrap.min.css"
+          rel="stylesheet"
+          integrity="sha384-eOJMYsd53ii+scO/bJGFsiCZc+5NDVN2yr8+0RDqr0Ql0h+rP48ckxlpbzKgwra6"
+          crossorigin="anonymous"
+        />
+        <script
+          src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/js/bootstrap.bundle.min.js"
+          integrity="sha384-JEW9xMcG8R+pH31jmWH6WWP0WintQrMb4s7ZOdauHnUtxwoG2vI5DkLtS3qm9Ekf"
+          crossorigin="anonymous"
+        ></script>
+
+
+        <center>
+          <h1></h1>
+        </center>
+        <style type="text/css">
+
+             #mynetwork {
+                 width: 90%;
+                 height: 1000px;
+                 background-color: #ffffff;
+                 border: 1px solid lightgray;
+                 position: relative;
+                 float: left;
+             }
+
+             
+
+             
+             #config {
+                 float: left;
+                 width: 400px;
+                 height: 600px;
+             }
+             
+
+             
+        </style>
+    </head>
+
+
+    <body>
+        <div class="card" style="width: 100%">
+            
+            
+            <div id="mynetwork" class="card-body"></div>
+        </div>
+
+        
+        
+            <div id="config"></div>
+        
+
+        <script type="text/javascript">
+
+              // initialize global variables.
+              var edges;
+              var nodes;
+              var allNodes;
+              var allEdges;
+              var nodeColors;
+              var originalNodes;
+              var network;
+              var container;
+              var options, data;
+              var filter = {
+                  item : '',
+                  property : '',
+                  value : []
+              };
+
+              
+
+              
+
+              // This method is responsible for drawing the graph, returns the drawn network
+              function drawGraph() {
+                  var container = document.getElementById('mynetwork');
+
+                  
+
+                  // parsing and collecting nodes and edges from the python
+                  nodes = new vis.DataSet([{"borderWidth": 3, "color": {"background": "#FFFFFF", "border": "black", "highlight": {"background": "#FFFFFF", "border": "#FF00FF"}}, "font": "30", "id": "421040900520060000002", "image": "propenoyl_2d/421040900520060000002_2d.png", "label": "0.0", "shape": "circularImage", "size": 80, "title": "421040900520060000002"}, {"borderWidth": 3, "color": {"background": "#FFFFFF", "border": "black", "highlight": {"background": "#FFFFFF", "border": "#FF00FF"}}, "font": "30", "id": "421040880520080000002", "image": "propenoyl_2d/421040880520080000002_2d.png", "label": "-8.3", "shape": "circularImage", "size": 80, "title": "421040880520080000002"}, {"borderWidth": 3, "color": {"background": "#FFFFFF", "border": "black", "highlight": {"background": "#FFFFFF", "border": "#FF00FF"}}, "font": "30", "id": "421281921200080000002", "image": "propenoyl_2d/421281921200080000002_2d.png", "label": "8.4", "shape": "circularImage", "size": 80, "title": "421281921200080000002"}, {"borderWidth": 3, "color": {"background": "#FFFFFF", "border": "black", "highlight": {"background": "#FFFFFF", "border": "#FF00FF"}}, "font": "30", "id": "421301881200100000002", "image": "propenoyl_2d/421301881200100000002_2d.png", "label": "20.4", "shape": "circularImage", "size": 80, "title": "421301881200100000002"}, {"borderWidth": 3, "color": {"background": "#FFFFFF", "border": "blue", "highlight": {"background": "#FFFFFF", "border": "#FF00FF"}}, "font": "30", "id": "10000000000000000002_410910750390000000001", "image": "propenoyl_2d/10000000000000000002_410910750390000000001_2d.png", "label": "28.5", "shape": "circularImage", "size": 80, "title": "10000000000000000002_410910750390000000001"}, {"borderWidth": 3, "color": {"background": "#FFFFFF", "border": "blue", "highlight": {"background": "#FFFFFF", "border": "#FF00FF"}}, "font": "30", "id": "150390060000000000002_270390150000000000001", "image": "propenoyl_2d/150390060000000000002_270390150000000000001_2d.png", "label": "-1.3", "shape": "circularImage", "size": 80, "title": "150390060000000000002_270390150000000000001"}, {"borderWidth": 3, "color": {"background": "#FFFFFF", "border": "blue", "highlight": {"background": "#FFFFFF", "border": "#FF00FF"}}, "font": "30", "id": "10000000000000000002_411151620880040000001", "image": "propenoyl_2d/10000000000000000002_411151620880040000001_2d.png", "label": "51.9", "shape": "circularImage", "size": 80, "title": "10000000000000000002_411151620880040000001"}, {"borderWidth": 3, "color": {"background": "#FFFFFF", "border": "blue", "highlight": {"background": "#FFFFFF", "border": "#FF00FF"}}, "font": "30", "id": "test1", "image": "propenoyl_2d/test1_2d.png", "label": "30.0", "shape": "circularImage", "size": 80, "title": "test1"}]);
+                  edges = new vis.DataSet([{"arrows": "", "color": {"color": "black", "highlight": "#FF00FF"}, "from": "421040900520060000002", "title": "48.4 kcal/mol", "to": "421040880520080000002", "width": 5.358974358974357}, {"arrows": "", "color": {"color": "black", "highlight": "#FF00FF"}, "from": "421040900520060000002", "title": "30.8 kcal/mol", "to": "10000000000000000002_410910750390000000001", "width": 15.14158305462653}, {"arrows": "", "color": {"color": "black", "highlight": "#FF00FF"}, "from": "421040900520060000002", "title": "20.3 kcal/mol", "to": "150390060000000000002_270390150000000000001", "width": 21.0}, {"arrows": "", "color": {"color": "black", "highlight": "#FF00FF"}, "from": "421281921200080000002", "title": "53.6 kcal/mol", "to": "421301881200100000002", "width": 2.42697881828316}, {"arrows": "", "color": {"color": "black", "highlight": "#FF00FF"}, "from": "421281921200080000002", "title": "36.2 kcal/mol", "to": "421040880520080000002", "width": 12.148272017837236}, {"arrows": "", "color": {"color": "black", "highlight": "#FF00FF"}, "from": "421281921200080000002", "title": "56.1 kcal/mol", "to": "10000000000000000002_411151620880040000001", "width": 1.0613154960981044}, {"arrows": "", "color": {"color": "black", "highlight": "#FF00FF"}, "from": "421301881200100000002", "title": "56.2 kcal/mol", "to": "10000000000000000002_411151620880040000001", "width": 1.0}, {"arrows": "", "color": {"color": "gray", "highlight": "#FF00FF"}, "from": "421040900520060000002", "title": "30.0 kcal/mol", "to": "test1", "width": 15.59866220735786}]);
+
+                  nodeColors = {};
+                  allNodes = nodes.get({ returnType: "Object" });
+                  for (nodeId in allNodes) {
+                    nodeColors[nodeId] = allNodes[nodeId].color;
+                  }
+                  allEdges = edges.get({ returnType: "Object" });
+                  // adding nodes and edges to the graph
+                  data = {nodes: nodes, edges: edges};
+
+                  var options = {
+    "configure": {
+        "enabled": true,
+        "filter": [
+            "physics"
+        ]
+    },
+    "edges": {
+        "color": {
+            "inherit": true
+        },
+        "smooth": {
+            "enabled": true,
+            "type": "dynamic"
+        }
+    },
+    "interaction": {
+        "dragNodes": true,
+        "hideEdgesOnDrag": false,
+        "hideNodesOnDrag": false
+    },
+    "physics": {
+        "enabled": true,
+        "stabilization": {
+            "enabled": true,
+            "fit": true,
+            "iterations": 1000,
+            "onlyDynamicEdges": false,
+            "updateInterval": 50
+        }
+    }
+};
+
+                  
+
+
+                  
+                  // if this network requires displaying the configure window,
+                  // put it in its div
+                  options.configure["container"] = document.getElementById("config");
+                  
+
+                  network = new vis.Network(container, data, options);
+
+                  
+
+                  
+
+                  
+
+
+                  
+
+                  return network;
+
+              }
+              drawGraph();
+        </script>
+    </body>
+</html>

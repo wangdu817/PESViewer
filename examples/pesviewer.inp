@@ -33,6 +33,8 @@ text_size          10        # font size of the energy values on the graph
 graph_edge_color   black     # color of graph edge, if set to 'energy', will be scaled accordingly
 reso_2d            1         # generate resonant structures and choose the best
 draw_placeholder_lines 1
+placeholder_scale 1 
+barrierless_straight_lines 1
 
 > <wells> 
 421040900520060000002 0.00
@@ -44,6 +46,7 @@ draw_placeholder_lines 1
 10000000000000000002_410910750390000000001 28.51
 150390060000000000002_270390150000000000001 -1.33
 10000000000000000002_411151620880040000001 51.85
+test1 30.0 CCC CC
 
 > <ts> 
 421040900520060000002_intra_H_migration_3_5 48.37 421040900520060000002 421040880520080000002 
@@ -55,7 +58,7 @@ draw_placeholder_lines 1
 421301881200100000002_h2_elim_2_7 56.19 421301881200100000002 10000000000000000002_411151620880040000001
 
 > <barrierless> 
-
+no_Bar1 421040900520060000002 test1
 
 > <help>
 File follows the rules of SD file format for keywords. Keywords are case

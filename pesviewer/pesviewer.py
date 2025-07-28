@@ -458,6 +458,8 @@ def read_input(fname):
     options['draw_placeholder_lines'] = 0
     # Scale factor for placeholder line length
     options['placeholder_scale'] = 1.0
+    # Whether to draw barrierless reactions as straight lines (1) or curved lines (0)
+    options['barrierless_straight_lines'] = 0
 
     if 'options' in input_dict:
         for line in input_dict['options']:
@@ -531,6 +533,8 @@ def read_input(fname):
                 options['draw_placeholder_lines'] = int(line.split()[1])
             elif line.startswith('placeholder_scale'):
                 options['placeholder_scale'] = float(line.split()[1])
+            elif line.startswith('barrierless_straight_lines'):
+                options['barrierless_straight_lines'] = int(line.split()[1])
             elif line.startswith('#'):
                 # comment line, don't do anything
                 continue
@@ -762,12 +766,12 @@ def setup_placeholder_lines():
         # Use fixed placeholder line length with configurable scale factor
         base_length = 0.5  # Fixed base length
         placeholder_x_length = base_length * options['placeholder_scale']
-        
+
         # Store the line segment endpoints for wells and bimolecs
         for w in wells:
             w.xmin = w.x - placeholder_x_length / 2
             w.xmax = w.x + placeholder_x_length / 2
-        
+
         for b in bimolecs:
             b.xmin = b.x - placeholder_x_length / 2
             b.xmax = b.x + placeholder_x_length / 2
@@ -985,7 +989,19 @@ def plot():
                 # end for
             # end if
         else:
-            if options['linear_lines']:
+            # Check if this line belongs to a barrierless reaction
+            is_barrierless_line = False
+            for struct in line.chemstruct:
+                if isinstance(struct, barrierless):
+                    is_barrierless_line = True
+                    break
+
+            # Apply barrierless straight lines option
+            if is_barrierless_line and options['barrierless_straight_lines'] == 1:
+                # Draw barrierless reactions as straight lines
+                xlist = [line.xmin, line.xmax]
+                y = [line.y1, line.y2]
+            elif options['linear_lines']:
                 if options['draw_placeholder_lines'] == 1:
                     # When placeholder lines are enabled, draw straight lines without horizontal segments
                     xlist = [line.xmin, line.xmax]
@@ -1374,13 +1390,26 @@ def updateplot(struct, x_change):
     # Update placeholder line endpoints if enabled
     if options['draw_placeholder_lines'] == 1:
         setup_placeholder_lines()
-        # Update the placeholder line for the moved structure
-        if struct in placeholder_linesd and hasattr(struct, 'xmin') and hasattr(struct, 'xmax'):
-            # Remove old line and create new one
-            placeholder_linesd[struct].remove()
-            line_obj = plt.gca().hlines(y=struct.y, xmin=struct.xmin, xmax=struct.xmax, 
-                                       color='black', linestyle='-', linewidth=options['lw']*2)
-            placeholder_linesd[struct] = line_obj
+        # Update ALL placeholder lines, not just the moved structure
+        # This ensures visual consistency when any structure is moved
+
+        # Update placeholder lines for all wells
+        for w in wells:
+            if w in placeholder_linesd and hasattr(w, 'xmin') and hasattr(w, 'xmax'):
+                # Remove old line and create new one
+                placeholder_linesd[w].remove()
+                line_obj = plt.gca().hlines(y=w.y, xmin=w.xmin, xmax=w.xmax,
+                                           color='black', linestyle='-', linewidth=options['lw']*2)
+                placeholder_linesd[w] = line_obj
+
+        # Update placeholder lines for all bimolecs
+        for b in bimolecs:
+            if b in placeholder_linesd and hasattr(b, 'xmin') and hasattr(b, 'xmax'):
+                # Remove old line and create new one
+                placeholder_linesd[b].remove()
+                line_obj = plt.gca().hlines(y=b.y, xmin=b.xmin, xmax=b.xmax,
+                                           color='black', linestyle='-', linewidth=options['lw']*2)
+                placeholder_linesd[b] = line_obj
     # generate new coordinates for the images
     if struct in imgsd:
         old_extent = imgsd[struct].get_extent()
@@ -1469,7 +1498,12 @@ def updateplot(struct, x_change):
             if li.straight_line:
                 print('straight line')
             else:
-                if options['linear_lines']:
+                # Apply barrierless straight lines option
+                if options['barrierless_straight_lines'] == 1:
+                    # Draw barrierless reactions as straight lines
+                    xlist = [li.xmin, li.xmax]
+                    y = [li.y1, li.y2]
+                elif options['linear_lines']:
                     if options['draw_placeholder_lines'] == 1:
                         # When placeholder lines are enabled, draw straight lines without horizontal segments
                         xlist = [li.xmin, li.xmax]
